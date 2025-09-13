@@ -1,41 +1,56 @@
 import 'package:arxiv/models/chat_message.dart';
 import 'package:arxiv/models/paper.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:openai_flutter/openai_flutter.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 class Gemini {
-  late final GenerativeModel _model;
-  late final ChatSession _chatSession;
+  late final OpenAIClient _client;
+  late final List<OpenAIChatCompletionRequestMessage> _messages;
 
-  Gemini._internal(String apiKey, String systemPrompt) {
-    _model = GenerativeModel(
+  Gemini._internal(String apiKey, String systemPrompt, {String? baseUrl, String? model}) {
+    _client = OpenAIClient(
       apiKey: apiKey,
-      model: 'gemini-1.5-flash',
-      systemInstruction: Content.system(systemPrompt),
-      generationConfig: GenerationConfig(
-        temperature: 1,
-        topK: 64,
-        topP: 0.95,
-        maxOutputTokens: 8192,
-        responseMimeType: 'text/plain',
-      ),
+      organizationId: '',
+      baseUrl: baseUrl,
     );
-
-    _chatSession = _model.startChat();
+    
+    _messages = [
+      OpenAIChatCompletionRequestMessage(
+        role: OpenAIChatMessageRole.system,
+        content: systemPrompt,
+      )
+    ];
   }
 
-  static Future<Gemini> newModel(String apiKey, {Paper? paper}) async {
+  static Future<Gemini> newModel(String apiKey, {Paper? paper, String? baseUrl, String? model}) async {
     final systemPrompt = paper != null
         ? await _getModelSystemMessage(paper)
         : await _getGeneralSystemMessage();
-    return Gemini._internal(apiKey, systemPrompt);
+    return Gemini._internal(apiKey, systemPrompt, baseUrl: baseUrl, model: model);
   }
 
   Future<ChatMessage> sendMessage(String message) async {
     try {
-      var content = Content.text(message);
-      var response = await _chatSession.sendMessage(content);
-      return ChatMessage(Role.ai, response.text?.trim() ?? "");
+      _messages.add(OpenAIChatCompletionRequestMessage(
+        role: OpenAIChatMessageRole.user,
+        content: message,
+      ));
+      
+      var response = await _client.createChatCompletion(
+        model: model ?? 'kimi-latest-8k',
+        messages: _messages,
+        temperature: 1,
+        topP: 0.95,
+        maxTokens: 8192,
+      );
+      
+      var aiResponse = response.choices.first.message.content;
+      _messages.add(OpenAIChatCompletionRequestMessage(
+        role: OpenAIChatMessageRole.assistant,
+        content: aiResponse,
+      ));
+      
+      return ChatMessage(Role.ai, aiResponse?.trim() ?? "");
     } catch (e) {
       return ChatMessage(Role.ai, e.toString());
     }
