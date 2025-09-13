@@ -1,4 +1,4 @@
-enum Role { ai, user, system }
+enum Role { ai, user, system, assistant }
 
 class ChatMessage {
   Role role;
