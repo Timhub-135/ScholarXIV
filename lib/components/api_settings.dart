@@ -16,18 +16,24 @@ class APISettings extends StatefulWidget {
 
 class _APISettingsState extends State<APISettings> {
   TextEditingController apiKeyController = TextEditingController();
-  var googleAIStudioURL = "https://aistudio.google.com/app/apikey";
+  TextEditingController baseUrlController = TextEditingController();
+  TextEditingController modelController = TextEditingController();
   var apiKey = "";
+  var baseUrl = "";
+  var model = "";
 
-  void getAPIKey() async {
-    await launchUrl(Uri.parse(googleAIStudioURL));
-  }
+
 
   void saveAPIKey() async {
     var newAPIKey = apiKeyController.text.trim();
+    var newBaseUrl = baseUrlController.text.trim();
+    var newModel = modelController.text.trim();
+    
     if (newAPIKey != "") {
       Box apiBox = await Hive.openBox("apibox");
       await apiBox.put("apikey", newAPIKey);
+      await apiBox.put("baseUrl", newBaseUrl);
+      await apiBox.put("model", newModel);
       await Hive.close();
     }
     widget.configAPIKey();
@@ -44,6 +50,8 @@ class _APISettingsState extends State<APISettings> {
   void getSavedAPIKey() async {
     Box apiBox = await Hive.openBox("apibox");
     apiKey = await apiBox.get("apikey") ?? "";
+    baseUrl = await apiBox.get("baseUrl") ?? "";
+    model = await apiBox.get("model") ?? "";
     await Hive.close();
     setState(() {});
   }
@@ -66,7 +74,7 @@ class _APISettingsState extends State<APISettings> {
               vertical: 10.0,
             ),
             child: const Text(
-              "\nTo use this feature please get an API key from Google AI Studio and configure here.",
+              "\nTo use this feature please configure your API settings here.",
               textAlign: TextAlign.center,
             ),
           ),
@@ -103,6 +111,72 @@ class _APISettingsState extends State<APISettings> {
               ),
             ),
           ),
+          Container(
+            padding: const EdgeInsets.only(left: 18.0, top: 10.0),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(30.0),
+              color: ThemeProvider.themeOf(context)
+                      .data
+                      .textTheme
+                      .bodyLarge
+                      ?.color
+                      ?.withAlpha(12) ??
+                  Colors.grey[100],
+            ),
+            child: TextField(
+              controller: baseUrlController,
+              cursorColor: ThemeProvider.themeOf(context).id == "dark_theme"
+                  ? Colors.white
+                  : ThemeProvider.themeOf(context)
+                      .data
+                      .textTheme
+                      .bodyLarge
+                      ?.color,
+              style: TextStyle(
+                color: ThemeProvider.themeOf(context).id == "dark_theme"
+                    ? Colors.white
+                    : Colors.black,
+              ),
+              decoration: InputDecoration(
+                hintText: baseUrl == "" ? 'enter base URL here..' : baseUrl,
+                hintStyle: TextStyle(color: Colors.grey[700]),
+                border: InputBorder.none,
+              ),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.only(left: 18.0, top: 10.0),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(30.0),
+              color: ThemeProvider.themeOf(context)
+                      .data
+                      .textTheme
+                      .bodyLarge
+                      ?.color
+                      ?.withAlpha(12) ??
+                  Colors.grey[100],
+            ),
+            child: TextField(
+              controller: modelController,
+              cursorColor: ThemeProvider.themeOf(context).id == "dark_theme"
+                  ? Colors.white
+                  : ThemeProvider.themeOf(context)
+                      .data
+                      .textTheme
+                      .bodyLarge
+                      ?.color,
+              style: TextStyle(
+                color: ThemeProvider.themeOf(context).id == "dark_theme"
+                    ? Colors.white
+                    : Colors.black,
+              ),
+              decoration: InputDecoration(
+                hintText: model == "" ? 'enter model name here..' : model,
+                hintStyle: TextStyle(color: Colors.grey[700]),
+                border: InputBorder.none,
+              ),
+            ),
+          ),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -127,7 +201,7 @@ class _APISettingsState extends State<APISettings> {
                     ),
                     borderRadius: BorderRadius.circular(10.0),
                   ),
-                  child: const Text("Get API Key"),
+                  child: const Text("Open API Docs"),
                 ),
               ),
               const SizedBox(width: 10.0),
