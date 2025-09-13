@@ -50,7 +50,7 @@ class Gemini {
         content: aiResponse,
       ));
       
-      return ChatMessage(Role.ai, aiResponse?.trim() ?? "");
+      return ChatMessage(Role.assistant, aiResponse?.trim() ?? "");
     } catch (e) {
       return ChatMessage(Role.ai, e.toString());
     }
