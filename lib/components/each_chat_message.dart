@@ -98,7 +98,7 @@ class _EachChatMessageState extends State<EachChatMessage> {
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: widget.response.role == Role.user
+      mainAxisAlignment: widget.response.role == Role.user || widget.response.role == Role.assistant
           ? MainAxisAlignment.end
           : MainAxisAlignment.start,
       children: [
@@ -109,7 +109,8 @@ class _EachChatMessageState extends State<EachChatMessage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 widget.response.role == Role.ai ||
-                        widget.response.role == Role.system
+                        widget.response.role == Role.system ||
+                        widget.response.role == Role.assistant
                     ? Padding(
                         padding: const EdgeInsets.only(top: 6.0, left: 10.0),
                         child: Icon(
@@ -264,7 +265,7 @@ class _EachChatMessageState extends State<EachChatMessage> {
               ],
             ),
             // TOOLS
-            widget.response.role.toString() == "AI" && widget.toolsOn == true
+            widget.response.role.toString() == "AI" || widget.response.role.toString() == "assistant" && widget.toolsOn == true
                 ? Container(
                     padding: const EdgeInsets.only(left: 50.0, bottom: 14.0),
                     child: Row(
