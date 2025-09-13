@@ -1,77 +1,12 @@
-name: Build & Upload Flutter APK, Windows, and Linux Binaries
+name: Build & Upload Flutter APK
 
 on:
   release:
     types: [created]
 
 jobs:
-  # build-android:
-  #   name: Build Flutter APK
-  #   runs-on: ubuntu-latest
-
-  #   steps:
-  #     - uses: actions/checkout@v4
-
-  #     - name: Set up Flutter
-  #       uses: subosito/flutter-action@v2
-  #       with:
-  #         channel: stable
-
-  #     - name: Install dependencies
-  #       run: flutter pub get
-
-  #     - name: Build Android APK
-  #       run: flutter build apk --release
-
-  #     - name: Rename the APK
-  #       run: |
-  #         mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/sholarxiv-release-${{ github.event.release.tag_name }}.apk
-  #         echo "APK renamed to scholarxiv-release-${{ github.event.release.tag_name }}.apk"
-
-  #     - name: Upload APK to GitHub Release
-  #       uses: softprops/action-gh-release@v2
-  #       with:
-  #         tag_name: ${{ github.event.release.tag_name }}
-  #         files: build/app/outputs/flutter-apk/scholarxiv-release.apk
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  build-windows:
-    name: Build Windows EXE
-    runs-on: windows-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-
-      - name: Enable Windows desktop
-        run: flutter config --enable-windows-desktop
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Build Windows App
-        run: |
-          flutter build windows --release
-
-      - name: Zip the binary location
-        run: Compress-Archive -Path build\windows\x64\runner\Release\ -DestinationPath build\windows\x64\runner\Release\scholarxiv-release-${{ github.event.release.tag_name }}.zip
-        shell: pwsh
-
-      - name: Upload Windows Zip
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.event.release.tag_name }}
-          files: build/windows/x64/runner/Release/scholarxiv-release-${{ github.event.release.tag_name }}.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  build-linux:
-    name: Build Linux Binary
+  build-android:
+    name: Build Flutter APK
     runs-on: ubuntu-latest
 
     steps:
@@ -81,30 +16,95 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-      
-      - name: Install dependencies
-        run: |
-          sudo apt-get update -y && sudo apt-get upgrade -y
-          sudo apt-get install -y curl git unzip xz-utils zip libglu1-mesa
-          sudo apt-get install -y clang cmake git ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
-
-      - name: Enable Linux desktop
-        run: flutter config --enable-linux-desktop
 
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build Linux Binary
-        run: flutter build linux --release
+      - name: Build Android APK
+        run: flutter build apk --release
 
-      - name: Zip the binary location
+      - name: Rename the APK
         run: |
-          tar -czf build/linux/x64/release/scholarxiv-release-${{ github.event.release.tag_name }}.tar.gz build/linux/x64/release/bundle/
+          mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/sholarxiv-release-${{ github.event.release.tag_name }}.apk
+          echo "APK renamed to scholarxiv-release-${{ github.event.release.tag_name }}.apk"
 
-      - name: Upload Linux Binary
+      - name: Upload APK to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.release.tag_name }}
-          files: build/linux/x64/release/scholarxiv-release-${{ github.event.release.tag_name }}.tar.gz
+          files: build/app/outputs/flutter-apk/scholarxiv-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # build-windows:
+  #   name: Build Windows EXE
+  #   runs-on: windows-latest
+
+  #   steps:
+  #     - uses: actions/checkout@v4
+
+  #     - name: Set up Flutter
+  #       uses: subosito/flutter-action@v2
+  #       with:
+  #         channel: stable
+
+  #     - name: Enable Windows desktop
+  #       run: flutter config --enable-windows-desktop
+
+  #     - name: Install dependencies
+  #       run: flutter pub get
+
+  #     - name: Build Windows App
+  #       run: |
+  #         flutter build windows --release
+
+  #     - name: Zip the binary location
+  #       run: Compress-Archive -Path build\windows\x64\runner\Release\ -DestinationPath build\windows\x64\runner\Release\scholarxiv-release-${{ github.event.release.tag_name }}.zip
+  #       shell: pwsh
+
+  #     - name: Upload Windows Zip
+  #       uses: softprops/action-gh-release@v2
+  #       with:
+  #         tag_name: ${{ github.event.release.tag_name }}
+  #         files: build/windows/x64/runner/Release/scholarxiv-release-${{ github.event.release.tag_name }}.zip
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # build-linux:
+  #   name: Build Linux Binary
+  #   runs-on: ubuntu-latest
+
+  #   steps:
+  #     - uses: actions/checkout@v4
+
+  #     - name: Set up Flutter
+  #       uses: subosito/flutter-action@v2
+  #       with:
+  #         channel: stable
+      
+  #     - name: Install dependencies
+  #       run: |
+  #         sudo apt-get update -y && sudo apt-get upgrade -y
+  #         sudo apt-get install -y curl git unzip xz-utils zip libglu1-mesa
+  #         sudo apt-get install -y clang cmake git ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+
+  #     - name: Enable Linux desktop
+  #       run: flutter config --enable-linux-desktop
+
+  #     - name: Install dependencies
+  #       run: flutter pub get
+
+  #     - name: Build Linux Binary
+  #       run: flutter build linux --release
+
+  #     - name: Zip the binary location
+  #       run: |
+  #         tar -czf build/linux/x64/release/scholarxiv-release-${{ github.event.release.tag_name }}.tar.gz build/linux/x64/release/bundle/
+
+  #     - name: Upload Linux Binary
+  #       uses: softprops/action-gh-release@v2
+  #       with:
+  #         tag_name: ${{ github.event.release.tag_name }}
+  #         files: build/linux/x64/release/scholarxiv-release-${{ github.event.release.tag_name }}.tar.gz
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
