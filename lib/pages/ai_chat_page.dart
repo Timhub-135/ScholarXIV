@@ -74,7 +74,7 @@ class _AIChatPageState extends State<AIChatPage> {
 
     if (message != "") {
       chatList.add(ChatMessage(Role.user, message));
-      chatList.add(ChatMessage(Role.system, _systemLoadingTrigger));
+      chatList.add(ChatMessage(Role.assistant, _systemLoadingTrigger));
       scrollToTheBottom();
 
       ChatMessage aiResponseObject = await model.sendMessage(message);
