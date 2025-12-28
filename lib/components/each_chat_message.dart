@@ -167,7 +167,7 @@ class _EachChatMessageState extends State<EachChatMessage> {
                                 horizontal: 20.0,
                                 vertical: 3.0,
                               ),
-                              child: LoadingAnimationWidget.prograssiveDots(
+                              child: LoadingAnimationWidget.progressiveDots(
                                 color: ThemeProvider.themeOf(context)
                                         .data
                                         .textTheme

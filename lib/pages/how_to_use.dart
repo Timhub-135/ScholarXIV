@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:theme_provider/theme_provider.dart';
-import 'package:photo_view/photo_view.dart';
 
 class HowToUsePage extends StatelessWidget {
-  const HowToUsePage({Key? key}) : super(key: key);
+  const HowToUsePage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -122,8 +121,8 @@ class HowToUsePage extends StatelessWidget {
           body: GestureDetector(
             onTap: () => Navigator.pop(context),
             child: Center(
-              child: PhotoView(
-                imageProvider: AssetImage(imagePath),
+              child: InteractiveViewer(
+                child: Image.asset(imagePath),
               ),
             ),
           ),

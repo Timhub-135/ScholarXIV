@@ -96,12 +96,10 @@ class _AIChatPageState extends State<AIChatPage> {
   void configModel() async {
     Box apiBox = await Hive.openBox("apibox");
     apiKey = await apiBox.get("apikey") ?? "";
-    var baseUrl = await apiBox.get("baseUrl") ?? "";
-    var modelName = await apiBox.get("model") ?? "";
     await Hive.close();
 
     if (apiKey.isNotEmpty) {
-      model = await Gemini.newModel(apiKey, paper: widget.paperData, baseUrl: baseUrl, model: modelName);
+      model = await Gemini.newModel(paper: widget.paperData);
       apiKeySettingsOn = false;
     } else {
       apiKeySettingsOn = true;

@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:theme_provider/theme_provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class APISettings extends StatefulWidget {
   const APISettings({super.key, required this.configAPIKey});
@@ -55,6 +54,8 @@ class _APISettingsState extends State<APISettings> {
     await Hive.close();
     setState(() {});
   }
+
+
 
   @override
   void initState() {
@@ -181,31 +182,6 @@ class _APISettingsState extends State<APISettings> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               GestureDetector(
-                onTap: () => {getAPIKey()},
-                child: Container(
-                  margin: const EdgeInsets.only(
-                    top: 10.0,
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12.0, vertical: 7.0),
-                  decoration: BoxDecoration(
-                    color: ThemeProvider.themeOf(context)
-                            .data
-                            .textTheme
-                            .bodyLarge
-                            ?.color
-                            ?.withAlpha(12) ??
-                        Colors.grey[100],
-                    border: Border.all(
-                      color: Colors.grey[500]!,
-                    ),
-                    borderRadius: BorderRadius.circular(10.0),
-                  ),
-                  child: const Text("Open API Docs"),
-                ),
-              ),
-              const SizedBox(width: 10.0),
-              GestureDetector(
                 onTap: () {
                   saveAPIKey();
                 },
@@ -267,7 +243,7 @@ class _APISettingsState extends State<APISettings> {
               right: 40.0,
             ),
             child: Text(
-              "The free tier of the Gemini API provides 15 RPM (requests per minute), 1M TPM (tokens per minute), 1500 RPD (requests per day) and 1M Context Caching but data exchanged will be used by Google to improve their service.",
+              "Please configure your API settings above. Make sure to enter a valid API key, base URL (if needed), and model name for your AI service.",
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.grey[500]!,

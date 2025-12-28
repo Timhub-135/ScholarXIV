@@ -1,56 +1,79 @@
 import 'package:arxiv/models/chat_message.dart';
 import 'package:arxiv/models/paper.dart';
-import 'package:openai_flutter/openai_flutter.dart';
+import 'package:dart_openai/dart_openai.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:hive/hive.dart';
 
 class Gemini {
-  late final OpenAIClient _client;
-  late final List<OpenAIChatCompletionRequestMessage> _messages;
+  late final List<OpenAIChatCompletionChoiceMessageModel> _messages;
+  String? _model;
 
-  Gemini._internal(String apiKey, String systemPrompt, {String? baseUrl, String? model}) {
-    _client = OpenAIClient(
-      apiKey: apiKey,
-      organizationId: '',
-      baseUrl: baseUrl,
-    );
-    
+  Gemini._internal(String systemPrompt, {String? model}) {
+    _model = model;
     _messages = [
-      OpenAIChatCompletionRequestMessage(
+      OpenAIChatCompletionChoiceMessageModel(
         role: OpenAIChatMessageRole.system,
-        content: systemPrompt,
+        content: [
+          OpenAIChatCompletionChoiceMessageContentItemModel.text(
+            systemPrompt,
+          )
+        ],
       )
     ];
   }
 
-  static Future<Gemini> newModel(String apiKey, {Paper? paper, String? baseUrl, String? model}) async {
+  static Future<Gemini> newModel({Paper? paper, String? model}) async {
+    // Load API settings from Hive
+    Box apiBox = await Hive.openBox("apibox");
+    String apiKey = await apiBox.get("apikey") ?? "";
+    String baseUrl = await apiBox.get("baseUrl") ?? "";
+    String savedModel = await apiBox.get("model") ?? "";
+    await Hive.close();
+
+    // Configure OpenAI with saved settings
+    if (apiKey.isNotEmpty) {
+      OpenAI.apiKey = apiKey;
+    }
+    if (baseUrl.isNotEmpty) {
+      OpenAI.baseUrl = baseUrl;
+    }
+
     final systemPrompt = paper != null
         ? await _getModelSystemMessage(paper)
         : await _getGeneralSystemMessage();
-    return Gemini._internal(apiKey, systemPrompt, baseUrl: baseUrl, model: model);
+    return Gemini._internal(systemPrompt, model: model ?? (savedModel.isNotEmpty ? savedModel : null));
   }
 
   Future<ChatMessage> sendMessage(String message) async {
     try {
-      _messages.add(OpenAIChatCompletionRequestMessage(
+      _messages.add(OpenAIChatCompletionChoiceMessageModel(
         role: OpenAIChatMessageRole.user,
-        content: message,
+        content: [
+          OpenAIChatCompletionChoiceMessageContentItemModel.text(
+            message,
+          )
+        ],
       ));
       
-      var response = await _client.createChatCompletion(
-        model: model ?? 'kimi-latest-8k',
+      var response = await OpenAI.instance.chat.create(
+        model: _model ?? 'kimi-latest-8k',
         messages: _messages,
         temperature: 1,
         topP: 0.95,
         maxTokens: 8192,
       );
       
-      var aiResponse = response.choices.first.message.content;
-      _messages.add(OpenAIChatCompletionRequestMessage(
+      var aiResponse = response.choices.first.message.content?.first.text ?? '';
+      _messages.add(OpenAIChatCompletionChoiceMessageModel(
         role: OpenAIChatMessageRole.assistant,
-        content: aiResponse,
+        content: [
+          OpenAIChatCompletionChoiceMessageContentItemModel.text(
+            aiResponse,
+          )
+        ],
       ));
       
-      return ChatMessage(Role.assistant, aiResponse?.trim() ?? "");
+      return ChatMessage(Role.assistant, aiResponse.trim());
     } catch (e) {
       return ChatMessage(Role.ai, e.toString());
     }
