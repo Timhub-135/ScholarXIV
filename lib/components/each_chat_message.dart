@@ -161,7 +161,9 @@ class _EachChatMessageState extends State<EachChatMessage> {
                             widget.response.content,
                           ),
                         )
-                      : widget.response.role == Role.system
+                      : (widget.response.role == Role.system || 
+                         (widget.response.role == Role.assistant && 
+                          widget.response.content == "SYMLOADINGANIMATION"))
                           ? Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 20.0,

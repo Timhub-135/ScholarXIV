@@ -3,6 +3,9 @@
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:theme_provider/theme_provider.dart';
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
 
 class APISettings extends StatefulWidget {
   const APISettings({super.key, required this.configAPIKey});
@@ -53,6 +56,51 @@ class _APISettingsState extends State<APISettings> {
     model = await apiBox.get("model") ?? "";
     await Hive.close();
     setState(() {});
+  }
+
+  void loadAPIConfig() async {
+    try {
+      // Pick JSON file
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+
+      if (result != null && result.files.single.bytes != null) {
+        // Read file content
+        Uint8List fileBytes = result.files.single.bytes!;
+        String jsonString = utf8.decode(fileBytes);
+        
+        // Parse JSON
+        Map<String, dynamic> config = jsonDecode(jsonString);
+        
+        // Extract values with null safety
+        String loadedApiKey = config['apikey'] ?? config['apiKey'] ?? config['api_key'] ?? '';
+        String loadedBaseUrl = config['baseUrl'] ?? config['baseURL'] ?? config['base_url'] ?? '';
+        String loadedModel = config['model'] ?? config['modelName'] ?? config['model_name'] ?? '';
+        
+        // Update controllers and state
+        apiKeyController.text = loadedApiKey;
+        baseUrlController.text = loadedBaseUrl;
+        modelController.text = loadedModel;
+        
+        setState(() {
+          apiKey = loadedApiKey;
+          baseUrl = loadedBaseUrl;
+          model = loadedModel;
+        });
+        
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('API configuration loaded successfully!')),
+        );
+      }
+    } catch (e) {
+      // Show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading configuration: ${e.toString()}')),
+      );
+    }
   }
 
 
@@ -232,6 +280,33 @@ class _APISettingsState extends State<APISettings> {
                     borderRadius: BorderRadius.circular(10.0),
                   ),
                   child: const Text("Clear API Key"),
+                ),
+              ),
+              const SizedBox(width: 10.0),
+              GestureDetector(
+                onTap: () {
+                  loadAPIConfig();
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(
+                    top: 10.0,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12.0, vertical: 7.0),
+                  decoration: BoxDecoration(
+                    color: ThemeProvider.themeOf(context)
+                            .data
+                            .textTheme
+                            .bodyLarge
+                            ?.color
+                            ?.withAlpha(12) ??
+                        Colors.grey[100],
+                    border: Border.all(
+                      color: Colors.grey[500]!,
+                    ),
+                    borderRadius: BorderRadius.circular(10.0),
+                  ),
+                  child: const Text("Load API Config"),
                 ),
               ),
             ],

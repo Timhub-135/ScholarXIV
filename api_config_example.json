@@ -1,0 +1,5 @@
+{
+  "apikey": "your-api-key-here",
+  "baseUrl": "https://api.example.com",
+  "model": "gpt-3.5-turbo"
+}

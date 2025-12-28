@@ -200,7 +200,7 @@ class _AIChatPageState extends State<AIChatPage> {
                               horizontal: 50.0,
                             ),
                             child: const Text(
-                              "This AI conversation is powered by Google's Gemini 1.5 Flash. You can have conversations about the current paper here.",
+                              "You can have conversations about the current paper here.",
                               textAlign: TextAlign.center,
                             ),
                           ),

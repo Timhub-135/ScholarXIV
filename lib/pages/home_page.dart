@@ -322,49 +322,49 @@ class _HomePageState extends State<HomePage> {
                   )
                 : Container(),
 
-            Container(
-              width: 100.0,
-              padding: const EdgeInsets.only(top: 200.0, bottom: 40.0),
-              child: Center(
-                child: Text(
-                  "Thank you to arXiv for use of its \nopen access interoperability.",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.grey[400]!,
-                    fontSize: 12.0,
-                  ),
-                ),
-              ),
-            ),
-            Center(
-              child: GestureDetector(
-                onTap: () {
-                  launchUrl(Uri.parse(sourceCodeURL));
-                },
-                child: const Text(
-                  "View Source Code on GitHub",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.blueAccent,
-                    fontSize: 12.0,
-                  ),
-                ),
-              ),
-            ),
+            // Container(
+            //   width: 100.0,
+            //   padding: const EdgeInsets.only(top: 200.0, bottom: 40.0),
+            //   child: Center(
+            //     child: Text(
+            //       "Thank you to arXiv for use of its \nopen access interoperability.",
+            //       textAlign: TextAlign.center,
+            //       style: TextStyle(
+            //         color: Colors.grey[400]!,
+            //         fontSize: 12.0,
+            //       ),
+            //     ),
+            //   ),
+            // ),
+            // Center(
+            //   child: GestureDetector(
+            //     onTap: () {
+            //       launchUrl(Uri.parse(sourceCodeURL));
+            //     },
+            //     child: const Text(
+            //       "View Source Code on GitHub",
+            //       textAlign: TextAlign.center,
+            //       style: TextStyle(
+            //         color: Colors.blueAccent,
+            //         fontSize: 12.0,
+            //       ),
+            //     ),
+            //   ),
+            // ),
 
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 5.0),
-                child: Text(
-                  "Made with 🤍 by Dream Intelligence",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.grey[600]!,
-                    fontSize: 12.0,
-                  ),
-                ),
-              ),
-            ),
+            // Center(
+            //   child: Padding(
+            //     padding: const EdgeInsets.only(top: 5.0),
+            //     child: Text(
+            //       "Made with 🤍 by Dream Intelligence",
+            //       textAlign: TextAlign.center,
+            //       style: TextStyle(
+            //         color: Colors.grey[600]!,
+            //         fontSize: 12.0,
+            //       ),
+            //     ),
+            //   ),
+            // ),
 
             const SizedBox(
               height: 20.0,
