@@ -36,14 +36,14 @@ class _EachChatMessageState extends State<EachChatMessage> {
   final _markdownPrefix = "SYMMDX";
 
   bool isMarkdown(String content) {
-    return content.substring(0, 6) == _markdownPrefix;
+    return content.length >= 6 && content.substring(0, 6) == _markdownPrefix;
   }
 
   void readResponse() async {
     var message = isMarkdown(widget.response.content)
         ? widget.response.content
             .toString()
-            .substring(6, widget.response.content.length)
+            .substring(6)
         : widget.response.content;
     if (isSpeaking == false) {
       await tts.setLanguage("en-US");
@@ -60,7 +60,7 @@ class _EachChatMessageState extends State<EachChatMessage> {
     var message = isMarkdown(widget.response.content)
         ? widget.response.content
             .toString()
-            .substring(6, widget.response.content.length)
+            .substring(6)
         : widget.response.content;
     Share.share(message.toString().trim());
   }
@@ -69,7 +69,7 @@ class _EachChatMessageState extends State<EachChatMessage> {
     var message = isMarkdown(widget.response.content)
         ? widget.response.content
             .toString()
-            .substring(6, widget.response.content.length)
+            .substring(6)
         : widget.response.content;
     await Clipboard.setData(
       ClipboardData(
@@ -179,15 +179,15 @@ class _EachChatMessageState extends State<EachChatMessage> {
                                 size: 30,
                               ),
                             )
-                          : widget.response.content
+                          : widget.response.content.length >= 6 &&
+                                  widget.response.content
                                       .toString()
                                       .substring(0, 6) ==
                                   "SYMMDX"
                               ? Markdown(
                                   data: widget.response.content
                                       .toString()
-                                      .substring(
-                                          6, widget.response.content.length)
+                                      .substring(6)
                                       .trim(),
                                   selectable: true,
                                   shrinkWrap: true,

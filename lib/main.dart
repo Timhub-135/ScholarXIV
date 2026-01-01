@@ -1,5 +1,7 @@
 import "package:arxiv/models/bookmarks.dart";
 import "package:arxiv/models/paper.dart";
+import "package:arxiv/models/chat_session.dart";
+import "package:arxiv/models/chat_message.dart";
 import "package:arxiv/pages/splash_screen.dart";
 import "package:flutter/material.dart";
 import "package:flutter/services.dart";
@@ -14,6 +16,9 @@ void main() async {
   await Hive.initFlutter();
   Hive.registerAdapter(BookmarkAdapter());
   Hive.registerAdapter(PaperAdapter());
+  Hive.registerAdapter(ChatSessionAdapter());
+  Hive.registerAdapter(ChatMessageAdapter());
+  Hive.registerAdapter(RoleAdapter());
   runApp(const MyApp());
 }
 

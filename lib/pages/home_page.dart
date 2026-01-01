@@ -1,4 +1,5 @@
 // ignore_for_file: file_names
+import 'dart:math';
 import 'package:arxiv/apis/arxiv.dart';
 import 'package:arxiv/components/each_paper_card.dart';
 import 'package:arxiv/components/loading_indicator.dart';
@@ -6,8 +7,10 @@ import 'package:arxiv/components/search_box.dart';
 import 'package:arxiv/models/paper.dart';
 import 'package:arxiv/pages/ai_chat_page.dart';
 import 'package:arxiv/pages/bookmarks_page.dart';
+import 'package:arxiv/pages/chat_history_page.dart';
 import 'package:arxiv/pages/how_to_use.dart';
 import 'package:arxiv/pages/pdf_viewer.dart';
+import 'package:arxiv/services/state_persistence.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:liquid_pull_to_refresh/liquid_pull_to_refresh.dart';
@@ -26,7 +29,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   var sourceCodeURL = "https://github.com/dagmawibabi/ScholArxiv";
   int startPagination = 0;
-  int maxContent = 30;
+  int maxContent = 30; // Kept for compatibility, but using maxResults now
   int paginationGap = 30;
   var pdfBaseURL = "https://arxiv.org/pdf";
   bool sortOrderNewest = true;
@@ -36,6 +39,12 @@ class _HomePageState extends State<HomePage> {
 
   var dio = Dio();
   List<Paper> data = [];
+  
+  // Topic selection
+  List<String> selectedTopics = [];
+  bool showTopicSelection = false;
+  bool useLatestPapers = true; // Default to latest papers
+  int maxResults = 30; // Default max results
 
   Future<void> search({bool? resetPagination}) async {
     if (resetPagination == true) {
@@ -50,14 +59,20 @@ class _HomePageState extends State<HomePage> {
       data = await Arxiv.search(
         searchTerm,
         page: startPagination,
-        pageSize: maxContent,
+        pageSize: maxResults,
       );
+    } else if (selectedTopics.isNotEmpty) {
+      // Use selected topics instead of random suggestions
+      data = await searchWithSelectedTopics();
     } else {
       data = await suggestedPapers();
     }
 
     isHomeScreenLoading = false;
     setState(() {});
+    
+    // Save state after loading papers
+    await _saveCurrentState();
   }
 
   Future<void> toggleSortOrder() async {
@@ -65,6 +80,8 @@ class _HomePageState extends State<HomePage> {
       sortOrderNewest = !sortOrderNewest; // Toggle the sorting order
     });
     await sortPapersByDate(); // Apply the sorting after toggling
+    // Save state after changing sort order
+    await _saveCurrentState();
   }
 
   Future<void> sortPapersByDate() async {
@@ -80,17 +97,70 @@ class _HomePageState extends State<HomePage> {
             : dateA.compareTo(dateB);
       });
       setState(() {});
+      // Save state after sorting
+      await _saveCurrentState();
     }
+  }
+
+  // Save current app state to local storage
+  Future<void> _saveCurrentState() async {
+    await StatePersistence.saveAppState(
+      papers: data,
+      searchTerm: searchTermController.text,
+      selectedTopics: selectedTopics,
+      startPagination: startPagination,
+      sortOrderNewest: sortOrderNewest,
+      useLatestPapers: useLatestPapers,
+      maxResults: maxResults,
+    );
   }
 
   Future<List<Paper>> suggestedPapers() async {
     var maxRetries = 10;
     List<Paper> suggested = [];
     while (suggested.isEmpty && maxRetries > 0) {
-      suggested = await Arxiv.suggest(pageSize: maxContent);
+      suggested = await Arxiv.suggest(pageSize: maxResults);
       maxRetries--;
     }
     return suggested;
+  }
+
+  Future<List<Paper>> searchWithSelectedTopics() async {
+    if (selectedTopics.isEmpty) return [];
+    
+    // Search for papers from selected topics
+    List<Paper> allPapers = [];
+    
+    if (useLatestPapers) {
+      // Search all selected topics for latest papers
+      for (final topic in selectedTopics) {
+        List<Paper> papers = await Arxiv.search(topic, page: startPagination, pageSize: maxResults);
+        allPapers.addAll(papers);
+      }
+      
+      // Sort by published date (newest first) and limit to maxResults
+      allPapers.sort((a, b) {
+        DateTime dateA = DateTime.parse(a.publishedAt);
+        DateTime dateB = DateTime.parse(b.publishedAt);
+        return dateB.compareTo(dateA); // newest first
+      });
+      
+      return allPapers.take(maxResults).toList();
+    } else {
+      // Random selection mode (original behavior)
+      Random random = Random();
+      
+      // Try a few random topics from the selected ones
+      for (int i = 0; i < min(3, selectedTopics.length); i++) {
+        int randomIndex = random.nextInt(selectedTopics.length);
+        String topic = selectedTopics[randomIndex];
+        
+        List<Paper> topicPapers = await Arxiv.search(topic, page: startPagination, pageSize: maxResults ~/ 3);
+        allPapers.addAll(topicPapers);
+      }
+      
+      return allPapers;
+    }
   }
 
   var paperTitle = "";
@@ -151,13 +221,245 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    search();
+    _loadSavedState();
+  }
+
+  // Load saved state on app start
+  Future<void> _loadSavedState() async {
+    final savedState = await StatePersistence.loadAppState();
+    
+    if (savedState != null && savedState['papers'] != null) {
+      // Restore saved state
+      setState(() {
+        data = savedState['papers'];
+        searchTermController.text = savedState['searchTerm'] ?? '';
+        selectedTopics = List<String>.from(savedState['selectedTopics'] ?? []);
+        startPagination = savedState['startPagination'] ?? 0;
+        sortOrderNewest = savedState['sortOrderNewest'] ?? true;
+        useLatestPapers = savedState['useLatestPapers'] ?? true;
+        maxResults = savedState['maxResults'] ?? 30;
+        isHomeScreenLoading = false;
+      });
+      
+      // Apply sorting if needed
+      if (data.isNotEmpty && sortOrderNewest) {
+        await sortPapersByDate();
+      }
+    } else {
+      // No saved papers found, but try to load settings first
+      if (savedState != null) {
+        // Restore settings even if no papers were saved
+        setState(() {
+          searchTermController.text = savedState['searchTerm'] ?? '';
+          selectedTopics = List<String>.from(savedState['selectedTopics'] ?? []);
+          useLatestPapers = savedState['useLatestPapers'] ?? true;
+          maxResults = savedState['maxResults'] ?? 30;
+          sortOrderNewest = savedState['sortOrderNewest'] ?? true;
+        });
+      }
+      
+      // Fetch fresh data using the restored settings (or defaults)
+      await search();
+    }
   }
 
   @override
   void dispose() {
     searchTermController.dispose();
     super.dispose();
+  }
+
+  Widget buildTopicSelection() {
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      margin: const EdgeInsets.only(bottom: 12.0),
+      decoration: BoxDecoration(
+        color: ThemeProvider.themeOf(context).data.appBarTheme.backgroundColor,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Select Topics',
+                style: TextStyle(
+                  fontSize: 16.0,
+                  fontWeight: FontWeight.bold,
+                  color: ThemeProvider.themeOf(context).id == "light_theme"
+                      ? Colors.black
+                      : Colors.white,
+                ),
+              ),
+              IconButton(
+                onPressed: () {
+                  setState(() {
+                    showTopicSelection = false;
+                  });
+                },
+                icon: const Icon(Icons.close, size: 20.0),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8.0),
+          
+          // Latest/Random Toggle
+          Row(
+            children: [
+              Text(
+                'Selection Mode:',
+                style: TextStyle(
+                  fontSize: 14.0,
+                  fontWeight: FontWeight.w500,
+                  color: ThemeProvider.themeOf(context).id == "light_theme"
+                      ? Colors.black
+                      : Colors.white,
+                ),
+              ),
+              const SizedBox(width: 12.0),
+              ChoiceChip(
+                label: const Text('Latest Papers'),
+                selected: useLatestPapers,
+                onSelected: (selected) {
+                  setState(() {
+                    useLatestPapers = true;
+                  });
+                  // Save state after changing selection mode
+                  _saveCurrentState();
+                },
+              ),
+              const SizedBox(width: 8.0),
+              ChoiceChip(
+                label: const Text('Random'),
+                selected: !useLatestPapers,
+                onSelected: (selected) {
+                  setState(() {
+                    useLatestPapers = false;
+                  });
+                  // Save state after changing selection mode
+                  _saveCurrentState();
+                },
+              ),
+            ],
+          ),
+          
+          // Max Results Input
+          Row(
+            children: [
+              Text(
+                'Max Results:',
+                style: TextStyle(
+                  fontSize: 14.0,
+                  fontWeight: FontWeight.w500,
+                  color: ThemeProvider.themeOf(context).id == "light_theme"
+                      ? Colors.black
+                      : Colors.white,
+                ),
+              ),
+              const SizedBox(width: 12.0),
+              SizedBox(
+                width: 80.0,
+                child: TextField(
+                  controller: TextEditingController(text: maxResults.toString()),
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+                    border: OutlineInputBorder(),
+                  ),
+                  onSubmitted: (value) {
+                    final newMax = int.tryParse(value) ?? 30;
+                    setState(() {
+                      maxResults = newMax.clamp(1, 100); // Limit between 1 and 100
+                    });
+                    // Save state after changing max results
+                    _saveCurrentState();
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8.0),
+          
+          Wrap(
+            spacing: 8.0,
+            runSpacing: 4.0,
+            children: Arxiv.topics.map((topic) {
+              bool isSelected = selectedTopics.contains(topic);
+              return FilterChip(
+                label: Text(topic),
+                selected: isSelected,
+                onSelected: (bool selected) {
+                  setState(() {
+                    if (selected) {
+                      selectedTopics.add(topic);
+                    } else {
+                      selectedTopics.remove(topic);
+                    }
+                  });
+                  // Save state after changing topic selection
+                  _saveCurrentState();
+                },
+                backgroundColor: Colors.grey[300],
+                selectedColor: ThemeProvider.themeOf(context).id == "light_theme"
+                    ? Colors.blue[300]
+                    : Colors.blue[600],
+                labelStyle: TextStyle(
+                  color: isSelected
+                      ? Colors.white
+                      : (ThemeProvider.themeOf(context).id == "light_theme"
+                          ? Colors.black
+                          : Colors.white),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 8.0),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    selectedTopics.clear();
+                  });
+                  // Save state after clearing topics
+                  _saveCurrentState();
+                },
+                child: const Text('Clear All'),
+              ),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    selectedTopics = List.from(Arxiv.topics);
+                  });
+                  // Save state after selecting all topics
+                  _saveCurrentState();
+                },
+                child: const Text('Select All'),
+              ),
+            ],
+          ),
+          if (selectedTopics.isNotEmpty) ...[
+            const SizedBox(height: 8.0),
+            ElevatedButton(
+              onPressed: () {
+                search(resetPagination: true);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ThemeProvider.themeOf(context).id == "light_theme"
+                    ? Colors.blue
+                    : Colors.blue[700],
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 40.0),
+              ),
+              child: const Text('Search Selected Topics'),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   @override
@@ -170,6 +472,46 @@ class _HomePageState extends State<HomePage> {
           "ScholArxiv",
         ),
         actions: [
+          // TOPIC SELECTION
+          Stack(
+            children: [
+              IconButton(
+                onPressed: () {
+                  setState(() {
+                    showTopicSelection = !showTopicSelection;
+                  });
+                },
+                icon: const Icon(
+                  Icons.topic_outlined,
+                ),
+              ),
+              if (selectedTopics.isNotEmpty)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(2.0),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(6.0),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 12,
+                      minHeight: 12,
+                    ),
+                    child: Text(
+                      '${selectedTopics.length}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 8.0,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+
           // HELP
           IconButton(
             onPressed: () {
@@ -200,6 +542,21 @@ class _HomePageState extends State<HomePage> {
             },
             icon: const Icon(
               Icons.bookmark_border_outlined,
+            ),
+          ),
+
+          // CHAT HISTORY
+          IconButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ChatHistoryPage(),
+                ),
+              );
+            },
+            icon: const Icon(
+              Icons.history,
             ),
           ),
 
@@ -249,6 +606,54 @@ class _HomePageState extends State<HomePage> {
                 searchFunction: search,
                 toggleSortOrder: toggleSortOrder,
                 sortOrderNewest: sortOrderNewest),
+            
+            // TOPIC STATUS INDICATOR
+            if (selectedTopics.isNotEmpty && !showTopicSelection)
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                padding: const EdgeInsets.all(12.0),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8.0),
+                    border: Border.all(
+                      color: Theme.of(context).primaryColor.withValues(alpha: 0.3),
+                    ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.topic,
+                      size: 16,
+                      color: Theme.of(context).primaryColor,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                        child: Text(
+                          'Searching ${selectedTopics.length} topic${selectedTopics.length == 1 ? "" : "s"} (${useLatestPapers ? "Latest" : "Random"}, Max: $maxResults)',
+                          style: TextStyle(
+                            color: Theme.of(context).primaryColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    IconButton(
+                      icon: Icon(
+                        Icons.close,
+                        size: 16,
+                        color: Theme.of(context).primaryColor,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          selectedTopics.clear();
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            
+            // Topic Selection Widget
+            if (showTopicSelection) buildTopicSelection(),
 
             // Data or Loading
             isHomeScreenLoading == true
@@ -302,7 +707,7 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                       Text(
-                        "Showing results from $startPagination to ${startPagination + maxContent}",
+                        "Showing results from $startPagination to ${startPagination + maxResults}",
                         style: TextStyle(
                           color: Colors.grey[600]!,
                         ),

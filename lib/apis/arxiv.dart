@@ -10,7 +10,7 @@ class Arxiv {
 
   static final _dio = Dio();
 
-  static const _topics = [
+  static const topics = [
     "computer",
     "machine learning",
     "mathematical theory of communication",
@@ -45,8 +45,8 @@ class Arxiv {
   /// Fetches papers for a random topic.
   static Future<List<Paper>> suggest({int pageSize = 30}) {
     Random random = Random();
-    int randomIndex = random.nextInt(_topics.length);
-    String topic = _topics[randomIndex];
+    int randomIndex = random.nextInt(topics.length);
+    String topic = topics[randomIndex];
 
     return search(topic, pageSize: pageSize);
   }

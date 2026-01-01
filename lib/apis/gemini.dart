@@ -28,6 +28,7 @@ class Gemini {
     String apiKey = await apiBox.get("apikey") ?? "";
     String baseUrl = await apiBox.get("baseUrl") ?? "";
     String savedModel = await apiBox.get("model") ?? "";
+    bool enableChineseTranslation = await apiBox.get("enableChineseTranslation") ?? false;
     await Hive.close();
 
     // Configure OpenAI with saved settings
@@ -39,8 +40,8 @@ class Gemini {
     }
 
     final systemPrompt = paper != null
-        ? await _getModelSystemMessage(paper)
-        : await _getGeneralSystemMessage();
+        ? await _getModelSystemMessage(paper, enableChineseTranslation: enableChineseTranslation)
+        : await _getGeneralSystemMessage(enableChineseTranslation: enableChineseTranslation);
     return Gemini._internal(systemPrompt, model: model ?? (savedModel.isNotEmpty ? savedModel : null));
   }
 
@@ -79,7 +80,145 @@ class Gemini {
     }
   }
 
-  static Future<String> _getModelSystemMessage(Paper paper) async {
+  Future<void> sendMessageStream(String message, Function(String) onChunk) async {
+    try {
+      _messages.add(OpenAIChatCompletionChoiceMessageModel(
+        role: OpenAIChatMessageRole.user,
+        content: [
+          OpenAIChatCompletionChoiceMessageContentItemModel.text(
+            message,
+          )
+        ],
+      ));
+      
+      String fullResponse = "";
+      
+      var stream = OpenAI.instance.chat.createStream(
+        model: _model ?? 'kimi-latest-8k',
+        messages: _messages,
+        temperature: 1,
+        topP: 0.95,
+        maxTokens: 8192,
+      );
+      
+      await for (var response in stream) {
+        var deltaContent = response.choices.first.delta.content;
+        if (deltaContent != null && deltaContent.isNotEmpty) {
+          var firstContent = deltaContent.first;
+          if (firstContent != null) {
+            var textContent = firstContent.text ?? '';
+            if (textContent.isNotEmpty) {
+              fullResponse += textContent;
+              onChunk(textContent);
+            }
+          }
+        }
+      }
+      
+      _messages.add(OpenAIChatCompletionChoiceMessageModel(
+        role: OpenAIChatMessageRole.assistant,
+        content: [
+          OpenAIChatCompletionChoiceMessageContentItemModel.text(
+            fullResponse,
+          )
+        ],
+      ));
+      
+    } catch (e) {
+      onChunk("\n\nError: ${e.toString()}");
+    }
+  }
+
+  Future<String> translateToChinese(String text) async {
+    try {
+      String translationPrompt = "Please translate the following text to Chinese. Maintain academic terminology and ensure the translation is accurate and natural:\n\n$text";
+      
+      _messages.add(OpenAIChatCompletionChoiceMessageModel(
+        role: OpenAIChatMessageRole.user,
+        content: [
+          OpenAIChatCompletionChoiceMessageContentItemModel.text(
+            translationPrompt,
+          )
+        ],
+      ));
+      
+      var response = await OpenAI.instance.chat.create(
+        model: _model ?? 'kimi-latest-8k',
+        messages: _messages,
+        temperature: 0.3,
+        topP: 0.95,
+        maxTokens: 4096,
+      );
+      
+      var chineseTranslation = response.choices.first.message.content?.first.text ?? '';
+      
+      _messages.add(OpenAIChatCompletionChoiceMessageModel(
+        role: OpenAIChatMessageRole.assistant,
+        content: [
+          OpenAIChatCompletionChoiceMessageContentItemModel.text(
+            chineseTranslation,
+          )
+        ],
+      ));
+      
+      return chineseTranslation.trim();
+    } catch (e) {
+      return "Translation error: ${e.toString()}";
+    }
+  }
+
+  Future<void> translateToChineseStream(String text, Function(String) onChunk) async {
+    try {
+      String translationPrompt = "Please translate the following text to Chinese. Maintain academic terminology and ensure the translation is accurate and natural:\n\n$text";
+      
+      _messages.add(OpenAIChatCompletionChoiceMessageModel(
+        role: OpenAIChatMessageRole.user,
+        content: [
+          OpenAIChatCompletionChoiceMessageContentItemModel.text(
+            translationPrompt,
+          )
+        ],
+      ));
+      
+      String fullTranslation = "";
+      
+      var stream = OpenAI.instance.chat.createStream(
+        model: _model ?? 'kimi-latest-8k',
+        messages: _messages,
+        temperature: 0.3,
+        topP: 0.95,
+        maxTokens: 4096,
+      );
+      
+      await for (var response in stream) {
+        var deltaContent = response.choices.first.delta.content;
+        if (deltaContent != null && deltaContent.isNotEmpty) {
+          var firstContent = deltaContent.first;
+          if (firstContent != null) {
+            var textContent = firstContent.text ?? '';
+            if (textContent.isNotEmpty) {
+              fullTranslation += textContent;
+              onChunk(textContent);
+            }
+          }
+        }
+      }
+      
+      _messages.add(OpenAIChatCompletionChoiceMessageModel(
+        role: OpenAIChatMessageRole.assistant,
+        content: [
+          OpenAIChatCompletionChoiceMessageContentItemModel.text(
+            fullTranslation,
+          )
+        ],
+      ));
+      
+    } catch (e) {
+      onChunk("\n\nTranslation error: ${e.toString()}");
+    }
+  }
+
+  static Future<String> _getModelSystemMessage(Paper paper, {bool enableChineseTranslation = false}) async {
     var substitutes = {
       'paperId': paper.id,
       'paperTitle': paper.title,
@@ -88,13 +227,25 @@ class Gemini {
       'paperSummary': paper.summary,
     };
 
-    return await _fromTemplateFile(
+    String baseMessage = await _fromTemplateFile(
         'assets/system_message_templates/model.txt', substitutes);
+    
+    if (enableChineseTranslation) {
+      baseMessage += "\n\nIMPORTANT: When responding to summary-related questions, always provide your response in Chinese language. Use proper Chinese grammar and terminology for academic discussions.";
+    }
+    
+    return baseMessage;
   }
 
-  static Future<String> _getGeneralSystemMessage() async {
-    return await _fromTemplateFile(
+  static Future<String> _getGeneralSystemMessage({bool enableChineseTranslation = false}) async {
+    String baseMessage = await _fromTemplateFile(
         'assets/system_message_templates/general.txt', {});
+    
+    if (enableChineseTranslation) {
+      baseMessage += "\n\nIMPORTANT: When responding to summary-related questions, always provide your response in Chinese language. Use proper Chinese grammar and terminology for academic discussions.";
+    }
+    
+    return baseMessage;
   }
 
   /// Interpolates values to a text read from a file. The format for a placeholder is {{some_name}}.

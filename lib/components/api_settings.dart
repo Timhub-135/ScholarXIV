@@ -23,6 +23,7 @@ class _APISettingsState extends State<APISettings> {
   var apiKey = "";
   var baseUrl = "";
   var model = "";
+  var enableChineseTranslation = true;
 
 
 
@@ -36,7 +37,15 @@ class _APISettingsState extends State<APISettings> {
       await apiBox.put("apikey", newAPIKey);
       await apiBox.put("baseUrl", newBaseUrl);
       await apiBox.put("model", newModel);
+      await apiBox.put("enableChineseTranslation", enableChineseTranslation);
       await Hive.close();
+      
+      // Update the state to reflect saved values
+      setState(() {
+        apiKey = newAPIKey;
+        baseUrl = newBaseUrl;
+        model = newModel;
+      });
     }
     widget.configAPIKey();
   }
@@ -45,6 +54,7 @@ class _APISettingsState extends State<APISettings> {
     apiKey = "";
     Box apiBox = await Hive.openBox("apibox");
     await apiBox.put("apikey", "");
+    await apiBox.put("enableChineseTranslation", false);
     await Hive.close();
     widget.configAPIKey();
   }
@@ -54,8 +64,15 @@ class _APISettingsState extends State<APISettings> {
     apiKey = await apiBox.get("apikey") ?? "";
     baseUrl = await apiBox.get("baseUrl") ?? "";
     model = await apiBox.get("model") ?? "";
+    enableChineseTranslation = await apiBox.get("enableChineseTranslation") ?? false;
     await Hive.close();
     setState(() {});
+  }
+
+  void saveChineseTranslationSetting() async {
+    Box apiBox = await Hive.openBox("apibox");
+    await apiBox.put("enableChineseTranslation", enableChineseTranslation);
+    await Hive.close();
   }
 
   void loadAPIConfig() async {
@@ -226,6 +243,50 @@ class _APISettingsState extends State<APISettings> {
               ),
             ),
           ),
+          Container(
+            padding: const EdgeInsets.only(left: 18.0, top: 15.0),
+            child: Row(
+              children: [
+                Theme(
+                  data: Theme.of(context).copyWith(
+                    unselectedWidgetColor: ThemeProvider.themeOf(context).id == "dark_theme"
+                        ? Colors.white
+                        : Colors.black,
+                  ),
+                  child: Checkbox(
+                    value: enableChineseTranslation,
+                    onChanged: (bool? value) {
+                      setState(() {
+                        enableChineseTranslation = value ?? false;
+                      });
+                      // Save the checkbox state immediately when changed
+                      saveChineseTranslationSetting();
+                    },
+                    activeColor: ThemeProvider.themeOf(context).id == "dark_theme"
+                        ? Colors.white
+                        : ThemeProvider.themeOf(context).id == "mixed_theme"
+                            ? const Color(0xff121212)
+                            : ThemeProvider.themeOf(context).data.primaryColor,
+                    checkColor: Colors.blue,
+                    side: BorderSide(
+                      color: ThemeProvider.themeOf(context).id == "dark_theme"
+                          ? Colors.white
+                          : Colors.black,
+                    ),
+                  ),
+                ),
+                Text(
+                  'Enable Chinese Translation',
+                  style: TextStyle(
+                    color: ThemeProvider.themeOf(context).id == "dark_theme"
+                        ? Colors.white
+                        : Colors.black,
+                    fontSize: 14.0,
+                  ),
+                ),
+              ],
+            ),
+          ),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -248,7 +309,9 @@ class _APISettingsState extends State<APISettings> {
                             ?.withAlpha(12) ??
                         Colors.grey[100],
                     border: Border.all(
-                      color: Colors.grey[500]!,
+                      color: ThemeProvider.themeOf(context).id == "dark_theme"
+                          ? Colors.white30
+                          : const Color.fromARGB(255, 0, 0, 0)!,
                     ),
                     borderRadius: BorderRadius.circular(10.0),
                   ),
@@ -275,7 +338,9 @@ class _APISettingsState extends State<APISettings> {
                             ?.withAlpha(12) ??
                         Colors.grey[100],
                     border: Border.all(
-                      color: Colors.grey[500]!,
+                      color: ThemeProvider.themeOf(context).id == "dark_theme"
+                          ? Colors.white30
+                          : Colors.grey[500]!,
                     ),
                     borderRadius: BorderRadius.circular(10.0),
                   ),
@@ -302,7 +367,9 @@ class _APISettingsState extends State<APISettings> {
                             ?.withAlpha(12) ??
                         Colors.grey[100],
                     border: Border.all(
-                      color: Colors.grey[500]!,
+                      color: ThemeProvider.themeOf(context).id == "dark_theme"
+                          ? Colors.white30
+                          : Colors.grey[500]!,
                     ),
                     borderRadius: BorderRadius.circular(10.0),
                   ),

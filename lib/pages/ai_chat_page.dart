@@ -6,6 +6,8 @@ import 'package:arxiv/components/each_chat_message.dart';
 import 'package:arxiv/components/prompt_suggestions.dart';
 import 'package:arxiv/models/chat_message.dart';
 import 'package:arxiv/models/paper.dart';
+import 'package:arxiv/models/chat_session.dart';
+import 'package:arxiv/pages/chat_history_page.dart';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:ionicons/ionicons.dart';
@@ -26,11 +28,12 @@ class _AIChatPageState extends State<AIChatPage> {
   var apiKey = "";
   List<ChatMessage> chatList = [];
   var apiKeySettingsOn = false;
-  var toolsOn = true;
+   var toolsOn = true;
+   String? currentSessionId;
 
-  final _systemLoadingTrigger = "SYMLOADINGANIMATION";
+  //  final _systemLoadingTrigger = "SYMLOADINGANIMATION";
 
-  late final Gemini model;
+  late Gemini model;
 
   var paperPromptSuggestions = [
     "Who wrote this paper?",
@@ -73,23 +76,117 @@ class _AIChatPageState extends State<AIChatPage> {
     userMessageController.clear();
 
     if (message != "") {
+      // Add user message and save immediately
       chatList.add(ChatMessage(Role.user, message));
-      chatList.add(ChatMessage(Role.assistant, _systemLoadingTrigger));
       scrollToTheBottom();
+      await saveCurrentSession();
 
-      ChatMessage aiResponseObject = await model.sendMessage(message);
+      // Add AI message placeholder and save
+      var aiMessage = ChatMessage(Role.assistant, "");
+      chatList.add(aiMessage);
+      scrollToTheBottom();
+      await saveCurrentSession();
 
-      chatList.removeLast();
-      setState(() {});
-      chatList.add(aiResponseObject);
-      setState(() {});
+      // Stream AI response and save after each chunk
+      await model.sendMessageStream(message, (chunk) async {
+        setState(() {
+          aiMessage.content += chunk;
+        });
+        scrollToTheBottom();
+        // Auto-save after each chunk to ensure progress is saved
+        await saveCurrentSession();
+      });
 
       scrollToTheBottom();
+      
+      // Final save after AI response completes
+      await saveCurrentSession();
     }
+  }
+
+  Future<void> saveCurrentSession() async {
+    try {
+      Box<ChatSession> sessionsBox = await Hive.openBox<ChatSession>('chat_sessions');
+      
+      // Always prioritize paper title for session title
+      String title;
+      if (widget.paperData != null && widget.paperData!.title.isNotEmpty) {
+        // Use paper title, truncate if too long
+        title = widget.paperData!.title.length > 80 
+            ? "${widget.paperData!.title.substring(0, 80)}..." 
+            : widget.paperData!.title;
+      } else if (chatList.isNotEmpty) {
+        // Fall back to first user message for non-paper chats
+        var firstUserMessage = chatList.firstWhere(
+          (msg) => msg.role == Role.user,
+          orElse: () => ChatMessage(Role.user, "General Chat"),
+        );
+        title = firstUserMessage.content.length > 50 
+            ? "${firstUserMessage.content.substring(0, 50)}..." 
+            : firstUserMessage.content;
+      } else {
+        // Empty chat session
+        title = widget.paperData != null ? "Paper Discussion" : "New Chat";
+      }
+      
+      ChatSession session;
+      if (currentSessionId != null) {
+        // Update existing session
+        var existingSession = sessionsBox.get(currentSessionId);
+        if (existingSession != null) {
+          session = existingSession.copyWith(
+            title: title,
+            messages: List.from(chatList),
+          );
+          await sessionsBox.put(currentSessionId, session);
+        }
+      } else {
+        // Create new session
+        session = ChatSession.create(
+          title: title,
+          paper: widget.paperData,
+          messages: List.from(chatList),
+        );
+        currentSessionId = session.id;
+        await sessionsBox.put(session.id, session);
+      }
+      
+      await Hive.close();
+    } catch (e) {
+      // Handle error saving chat session
+      print('Error saving chat session: $e');
+    }
+  }
+
+  Future<void> loadSession(ChatSession session) async {
+    setState(() {
+      chatList.clear();
+      chatList.addAll(session.messages);
+      currentSessionId = session.id;
+    });
+    
+    // Scroll to bottom after loading
+    Future.delayed(const Duration(milliseconds: 100), () {
+      scrollToTheBottom();
+    });
+  }
+
+  Future<void> loadSessionFromHistory(ChatSession session) async {
+    setState(() {
+      chatList.clear();
+      chatList.addAll(session.messages);
+      currentSessionId = session.id;
+    });
+    
+    // Scroll to bottom after loading
+    Future.delayed(const Duration(milliseconds: 100), () {
+      scrollToTheBottom();
+    });
   }
 
   void clearChat() async {
     chatList.clear();
+    currentSessionId = null;
     setState(() {});
   }
 
@@ -131,7 +228,39 @@ class _AIChatPageState extends State<AIChatPage> {
   void initState() {
     super.initState();
     getToggleTools();
-    configModel();
+    // Initialize model in the next frame to avoid setState called during build errors
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      configModel();
+    });
+    // Initialize session for paper-based chats
+    if (widget.paperData != null) {
+      Future.delayed(const Duration(milliseconds: 500), () {
+        saveInitialSession();
+      });
+    }
+  }
+
+  Future<void> saveInitialSession() async {
+    if (chatList.isEmpty && widget.paperData != null) {
+      try {
+        Box<ChatSession> sessionsBox = await Hive.openBox<ChatSession>('chat_sessions');
+        
+        String title = widget.paperData!.title.length > 80 
+            ? "${widget.paperData!.title.substring(0, 80)}..." 
+            : widget.paperData!.title;
+        
+        ChatSession session = ChatSession.create(
+          title: title,
+          paper: widget.paperData,
+          messages: [],
+        );
+        currentSessionId = session.id;
+        await sessionsBox.put(session.id, session);
+        await Hive.close();
+      } catch (e) {
+        print('Error saving initial session: $e');
+      }
+    }
   }
 
   @override
@@ -140,36 +269,54 @@ class _AIChatPageState extends State<AIChatPage> {
       appBar: AppBar(
         title: const Text("ScholArxiv AI"),
         actions: [
-          // TOGGLE TOOLS
-          IconButton(
-            onPressed: () {
-              toggleTools();
-            },
-            icon: const Icon(
-              Icons.menu_open_rounded,
-            ),
+        // CHAT HISTORY
+        IconButton(
+          onPressed: () async {
+            final selectedSession = await Navigator.push<ChatSession>(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ChatHistoryPage(),
+              ),
+            );
+            
+            if (selectedSession != null) {
+              await loadSessionFromHistory(selectedSession);
+            }
+          },
+          icon: const Icon(
+            Icons.history,
           ),
-          // API KEY SETTINGS
-          IconButton(
-            onPressed: () {
-              toggleAPIKeySettings();
-            },
-            icon: const Icon(
-              Ionicons.key_outline,
-            ),
+        ),
+        // TOGGLE TOOLS
+        IconButton(
+          onPressed: () {
+            toggleTools();
+          },
+          icon: const Icon(
+            Icons.menu_open_rounded,
           ),
+        ),
+        // API KEY SETTINGS
+        IconButton(
+          onPressed: () {
+            toggleAPIKeySettings();
+          },
+          icon: const Icon(
+            Ionicons.key_outline,
+          ),
+        ),
 
-          // CLEAR CHAT
-          IconButton(
-            onPressed: () {
-              clearChat();
-            },
-            icon: const Icon(
-              Icons.delete_forever_outlined,
-            ),
+        // CLEAR CHAT
+        IconButton(
+          onPressed: () {
+            clearChat();
+          },
+          icon: const Icon(
+            Icons.delete_forever_outlined,
           ),
-          const SizedBox(width: 5.0),
-        ],
+        ),
+        const SizedBox(width: 5.0),
+      ],
       ),
       body: Column(
         children: [
